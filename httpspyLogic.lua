@@ -1,18 +1,16 @@
---// HttpSpy Core | Matcha LuaU VM
---// by Cannedsoup - inspired by Depso's HttpSpy
---// Loaded remotely - do not run this directly
+--// HttpSpy Core | Cannedsoup (Inspired from IEnes HttpSpy for normal executors)
+--//loaded remotely - do not run this directly
 
 local _origGet     = game.HttpGet
 local _origPost    = game.HttpPost
 local _origLoadstr = loadstring
 local HttpService  = game:GetService("HttpService")
 
---// ── Logger ────────────────────────────────
+--//logger
 local function log(tag, msg)
     print(("[HttpSpy][%s] %s"):format(tag, tostring(msg):sub(1, 400)))
 end
 
---// ── URL intercepts (edit these) ──────────
 local UrlIntercepts = {
     ["http://127.0.0.1:6463/rpc"] = {
         Callback = function()
@@ -28,7 +26,7 @@ local function findIntercept(url)
     end
 end
 
---// ── Source URL scanner ───────────────────
+--//scan URLs
 local function scanForUrls(src)
     local found = {}
     local seen  = {}
@@ -41,7 +39,7 @@ local function scanForUrls(src)
     return found
 end
 
---// ── Core HTTP handler ────────────────────
+--core HTTP handler
 local function handleRequest(method, origFunc, url, body, headers, ...)
     --// Log request
     log(method, url)
@@ -51,7 +49,6 @@ local function handleRequest(method, origFunc, url, body, headers, ...)
         if ok then log("HEADERS", enc:sub(1, 300)) end
     end
 
-    --// Check intercepts
     local intercept = findIntercept(url)
     local response
 
@@ -72,7 +69,7 @@ local function handleRequest(method, origFunc, url, body, headers, ...)
     return spoofed
 end
 
---// ── Spy wrappers ─────────────────────────
+--//spy wrappers
 local function spyGet(self, url, ...)
     return handleRequest("GET", _origGet, url, nil, nil, ...)
 end
@@ -81,15 +78,12 @@ local function spyPost(self, url, body, ...)
     return handleRequest("POST", _origPost, url, body, nil, ...)
 end
 
---// ── Expose globals ───────────────────────
+--//globals
 HttpGet  = spyGet
 HttpPost = spyPost
 _G.HttpGet  = spyGet
 _G.HttpPost = spyPost
 
---// ── Spy loadstring env ───────────────────
---// Tries to inject spy into any loaded chunk
---// so inner HttpGet/HttpPost calls are caught
 local spyMeta = {
     __index = function(t, k)
         if k == "HttpGet"  then return spyGet  end
@@ -106,9 +100,7 @@ loadstring = function(src, chunkname)
     return fn, err
 end
 
---// ── game_HttpGet_spy ─────────────────────
---// Use this instead of loadstring(game:HttpGet(url))()
---// It fetches, scans, injects spy env, then runs
+--//spy logic
 game_HttpGet_spy = function(url, ...)
     log("FETCH", url)
 
@@ -119,7 +111,6 @@ game_HttpGet_spy = function(url, ...)
     end
     log("BYTES", #src .. " bytes")
 
-    --// Static scan for hardcoded URLs in source
     local urls = scanForUrls(src)
     if #urls > 0 then
         log("SCAN", #urls .. " URL(s) found in source:")
@@ -134,7 +125,6 @@ game_HttpGet_spy = function(url, ...)
         return
     end
 
-    --// Inject spy environment
     pcall(setfenv, fn, setmetatable({}, spyMeta))
 
     --// Run it
